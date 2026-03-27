@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Zimmerbelegung</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f2f2f7;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #1c1c1e;
+      color: #fff;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      min-height: 52px;
+    }
+    .header h1 { font-size: 17px; font-weight: 700; }
+    .month-nav { display: flex; align-items: center; gap: 6px; }
+    .nav-btn {
+      background: rgba(255,255,255,0.15);
+      border: none; color: #fff; font-size: 20px;
+      width: 36px; height: 36px; border-radius: 8px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .nav-btn:active { background: rgba(255,255,255,0.3); }
+    #monthLabel { font-size: 16px; font-weight: 600; min-width: 160px; text-align: center; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex; background: #fff;
+      border-bottom: 1px solid #d1d1d6; flex-shrink: 0;
+    }
+    .tab-btn {
+      flex: 1; padding: 10px 4px; text-align: center;
+      font-size: 14px; font-weight: 500; color: #8e8e93;
+      cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active { color: #007aff; border-bottom-color: #007aff; }
+
+    /* ── Content ── */
+    .content { flex: 1; overflow: hidden; }
+    .tab-pane { display: none; height: 100%; flex-direction: column; }
+    .tab-pane.active { display: flex; }
+
+    /* ── Grid ── */
+    .grid-wrapper {
+      flex: 1; overflow: auto; -webkit-overflow-scrolling: touch;
+    }
+    #grid { border-collapse: collapse; }
+
+    #grid thead th { position: sticky; top: 0; z-index: 20; }
+    .col-room { position: sticky; left: 0; z-index: 15; }
+    #grid thead .col-room { z-index: 25; }
+
+    .col-room {
+      width: 148px; min-width: 148px;
+      background: #f2f2f7;
+      border-right: 2px solid #b0b0b5;
+      padding: 3px 8px;
+    }
+
+    .day-th {
+      width: 44px; min-width: 44px; height: 44px;
+      background: #f2f2f7;
+      text-align: center; border: 1px solid #d1d1d6;
+      font-size: 13px; font-weight: 600; color: #3a3a3c;
+      vertical-align: middle; padding: 0; line-height: 1.2;
+    }
+    .day-th.is-today { color: #007aff; }
+    .day-th.is-weekend { background: #efefef; }
+    .weekday-label { display: block; font-size: 9px; font-weight: 400; color: #8e8e93; }
+    .day-th.is-weekend .weekday-label { color: #ff3b30; }
+
+    /* Room rows */
+    td.col-room { height: 46px; }
+    .room-cell-inner {
+      display: flex; align-items: center; gap: 5px; height: 100%;
+    }
+    .room-num {
+      font-size: 15px; font-weight: 700; color: #1c1c1e;
+      min-width: 26px; text-align: right;
+    }
+    .room-num.invisible { visibility: hidden; }
+    .bed-badge {
+      font-size: 10px; color: #8e8e93;
+      background: #e5e5ea; padding: 1px 5px; border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .tenant-names {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; justify-content: center;
+      gap: 0px; cursor: pointer; padding: 1px 0;
+    }
+    .t1-name {
+      font-size: 12px; color: #1c1c1e; font-weight: 500;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      text-align: left; line-height: 1.3;
+    }
+    .t1-name.empty { color: #c7c7cc; font-style: italic; font-weight: 400; }
+    .t2-name {
+      font-size: 11px; color: #636366;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      text-align: right; line-height: 1.3;
+    }
+
+    /* Occupancy cells */
+    .occ-cell {
+      width: 44px; min-width: 44px; height: 46px;
+      border: 1px solid #e0e0e0;
+      cursor: pointer; text-align: center; vertical-align: middle;
+      font-weight: 700; color: #fff;
+      user-select: none; -webkit-user-select: none;
+      position: relative;
+    }
+    .occ-cell:active { opacity: 0.6; }
+
+    .occ-cell.s-frei   { background: #fff; }
+    .occ-cell.s-belegt { background: #34c759; }
+    .occ-cell.s-weg    { background: #ff3b30; }
+    .occ-cell.s-heim   { background: #ff9500; }
+    .occ-cell.s-we     { background: #ff9500; }
+
+    .occ-cell.s-belegt::before { content: '×'; font-size: 22px; line-height: 1; }
+    .occ-cell.s-heim::before   { content: 'o'; font-size: 20px; line-height: 1; }
+    .occ-cell.s-we::before     { content: 'o'; font-size: 20px; line-height: 1; }
+    .occ-cell.s-weg::before    { content: '−'; font-size: 26px; line-height: 1; }
+
+    /* Split cell (two tenants) */
+    .occ-cell.is-split::before { content: none; }
+    .sp1, .sp2 {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; font-size: 13px; font-weight: 700; color: #fff;
+    }
+    .sp1 {
+      clip-path: polygon(0 0, 100% 0, 0 100%);
+      align-items: flex-start; justify-content: flex-start;
+      padding: 3px 0 0 3px;
+    }
+    .sp2 {
+      clip-path: polygon(100% 0, 100% 100%, 0 100%);
+      align-items: flex-end; justify-content: flex-end;
+      padding: 0 3px 2px 0;
+    }
+    .sbc-frei   { background: #e8e8e8; }
+    .sbc-belegt { background: #34c759; }
+    .sbc-heim   { background: #ff9500; }
+    .sbc-we     { background: #ff9500; }
+    .sbc-weg    { background: #ff3b30; }
+    .diag-line {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; overflow: visible;
+    }
+
+    /* Today column border */
+    .day-th.is-today {
+      border-top: 2px solid #007aff !important;
+      border-left: 2px solid #007aff !important;
+      border-right: 2px solid #007aff !important;
+    }
+    .occ-cell.is-today-col {
+      border-left: 2px solid #007aff !important;
+      border-right: 2px solid #007aff !important;
+    }
+    .occ-cell.is-today-last {
+      border-bottom: 2px solid #007aff !important;
+    }
+
+    /* Past days: faded */
+    .occ-cell.is-past { opacity: 0.35; }
+
+    .occ-cell.is-weekend.s-frei { background: #f5f5f5; }
+
+    tr.room-divider td { border-top: 2px solid #b0b0b5 !important; }
+
+    /* ── Cleaning Pane ── */
+    .scroll-pane { flex: 1; overflow-y: auto; padding: 16px; }
+
+    .cleaning-date-header { font-size: 22px; font-weight: 700; color: #1c1c1e; margin-bottom: 4px; }
+    .future-date-header {
+      font-size: 15px; font-weight: 600; color: #3a3a3c;
+      margin-top: 24px; margin-bottom: 8px;
+      padding-top: 20px; border-top: 1px solid #d1d1d6;
+    }
+    .cleaning-sub { font-size: 14px; color: #8e8e93; margin-bottom: 16px; }
+    .section-label {
+      font-size: 11px; font-weight: 600; color: #8e8e93;
+      text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px;
+    }
+    .cleaning-section { margin-bottom: 24px; }
+    .cleaning-card {
+      background: #fff; border-radius: 12px; padding: 13px 16px;
+      margin-bottom: 8px; display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+    }
+    .cleaning-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; flex-shrink: 0;
+    }
+    .icon-full  { background: #ff3b30; }
+    .icon-small { background: #ff9500; }
+    .cleaning-card-info h3 { font-size: 16px; font-weight: 600; color: #1c1c1e; }
+    .cleaning-card-info p  { font-size: 13px; color: #8e8e93; margin-top: 2px; }
+    .empty-state { text-align: center; padding: 56px 24px; color: #8e8e93; }
+    .empty-state .emoji { font-size: 52px; margin-bottom: 12px; }
+    .empty-state p { font-size: 16px; }
+
+    /* ── Settings Pane ── */
+    .settings-list {
+      background: #fff; border-radius: 12px; overflow: hidden; margin-bottom: 16px;
+    }
+    .settings-row {
+      display: flex; align-items: center; padding: 12px 16px;
+      border-bottom: 1px solid #f2f2f7; gap: 10px;
+    }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-row .s-label { flex: 1; font-size: 15px; color: #1c1c1e; }
+    .beds-control { display: flex; align-items: center; gap: 8px; }
+    .beds-control .lbl { font-size: 13px; color: #8e8e93; }
+    .beds-btn {
+      width: 30px; height: 30px; border-radius: 50%; border: none;
+      font-size: 20px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; line-height: 1;
+    }
+    .beds-minus { background: #ff3b30; color: #fff; }
+    .beds-plus  { background: #34c759; color: #fff; }
+    .beds-count { font-size: 15px; font-weight: 600; min-width: 18px; text-align: center; }
+    .del-btn { background: none; border: none; color: #ff3b30; font-size: 22px; cursor: pointer; padding: 2px 4px; }
+    .add-row {
+      display: flex; gap: 8px; align-items: center;
+      background: #fff; border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;
+    }
+    .add-row input {
+      flex: 1; border: 1px solid #d1d1d6; border-radius: 8px;
+      padding: 10px 12px; font-size: 15px; -webkit-appearance: none;
+    }
+    .btn {
+      padding: 10px 18px; border-radius: 10px; border: none;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    .btn-primary { background: #007aff; color: #fff; }
+    .btn-danger  { background: #ff3b30; color: #fff; }
+    .btn:active  { opacity: 0.7; }
+    .row-del-btn {
+      background: none; border: none; color: #ff3b30;
+      font-size: 14px; cursor: pointer; padding: 4px 2px;
+      flex-shrink: 0; opacity: 0.5; line-height: 1;
+    }
+    .row-del-btn:active { opacity: 1; }
+    .month-del-nav {
+      display: flex; align-items: center; gap: 10px; flex: 1;
+    }
+    .month-del-nav span { font-size: 15px; font-weight: 500; min-width: 110px; }
+    .nav-btn-sm {
+      background: #e5e5ea; border: none; color: #1c1c1e;
+      font-size: 17px; width: 30px; height: 30px;
+      border-radius: 7px; cursor: pointer;
+    }
+
+    /* ── Help box ── */
+    .help-box {
+      background: #fff; border-radius: 12px; overflow: hidden;
+      margin-bottom: 32px;
+    }
+    .help-row {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 14px 16px;
+    }
+    .help-divider { height: 1px; background: #f2f2f7; margin: 0 16px; }
+    .help-icon {
+      font-size: 22px; width: 36px; text-align: center;
+      flex-shrink: 0; padding-top: 1px;
+    }
+    .help-dots {
+      display: flex; gap: 4px; flex-shrink: 0; padding-top: 3px;
+    }
+    .help-dot {
+      width: 22px; height: 22px; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #fff;
+    }
+    .help-text { font-size: 14px; color: #3a3a3c; line-height: 1.5; }
+
+    /* ── Overlay & Sheets ── */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.42);
+      z-index: 100; display: flex; align-items: flex-end;
+    }
+    .overlay.center { align-items: center; justify-content: center; padding: 20px; }
+    .overlay.hidden { display: none; }
+
+    .action-sheet {
+      background: #fff; border-radius: 16px 16px 0 0;
+      width: 100%; padding-bottom: 36px; max-height: 80vh; overflow-y: auto;
+    }
+    .sheet-header {
+      text-align: center; padding: 14px 16px 10px;
+      border-bottom: 1px solid #f2f2f7;
+    }
+    .sheet-header .sh-title  { font-size: 13px; color: #8e8e93; }
+    .sheet-header .sh-sub    { font-size: 15px; font-weight: 600; color: #1c1c1e; }
+    .sheet-btn {
+      display: flex; align-items: center; width: 100%;
+      padding: 15px 16px; font-size: 17px; border: none; background: #fff;
+      cursor: pointer; border-bottom: 1px solid #f2f2f7; gap: 14px; text-align: left;
+    }
+    .sheet-btn:last-child { border-bottom: none; }
+    .sheet-btn:active { background: #f2f2f7; }
+    .sheet-btn.is-current { font-weight: 700; }
+    .sheet-btn.is-current::after { content: '✓'; margin-left: auto; color: #007aff; font-size: 17px; }
+    .dot {
+      width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    }
+    .dot-frei   { background: #e5e5ea; }
+    .dot-belegt { background: #34c759; }
+    .dot-weg    { background: #ff3b30; }
+    .dot-heim   { background: #ff9500; }
+    .dot-we     { background: #ff9500; }
+    .sheet-cancel {
+      display: block; width: calc(100% - 32px); margin: 10px 16px 0;
+      padding: 15px; font-size: 17px; font-weight: 600;
+      border: none; background: #f2f2f7; border-radius: 12px;
+      cursor: pointer; color: #3a3a3c; text-align: center;
+    }
+
+    .modal-box {
+      background: #fff; border-radius: 16px; padding: 24px;
+      width: 100%; max-width: 380px;
+    }
+    .modal-box h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+    .modal-input {
+      width: 100%; padding: 12px; border: 1px solid #d1d1d6;
+      border-radius: 10px; font-size: 16px; margin-bottom: 16px;
+      -webkit-appearance: none;
+    }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <h1>Zimmerbelegung</h1>
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <span id="monthLabel">—</span>
+    <button class="nav-btn" onclick="changeMonth(+1)">›</button>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab-btn active" data-tab="belegung"     onclick="switchTab('belegung')">Belegung</div>
+  <div class="tab-btn"        data-tab="reinigung"    onclick="switchTab('reinigung')">Reinigung</div>
+  <div class="tab-btn"        data-tab="einstellungen" onclick="switchTab('einstellungen')">Einstellungen</div>
+</div>
+
+<!-- Content -->
+<div class="content">
+  <div class="tab-pane active" id="pane-belegung">
+    <div class="grid-wrapper">
+      <table id="grid"><thead></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="tab-pane" id="pane-reinigung">
+    <div class="scroll-pane" id="cleaningContent"></div>
+  </div>
+
+  <div class="tab-pane" id="pane-einstellungen">
+    <div class="scroll-pane" id="settingsContent"></div>
+  </div>
+</div>
+
+<!-- Action Sheet -->
+<div class="overlay hidden" id="actionOverlay" onclick="closeActionSheet()">
+  <div class="action-sheet" onclick="event.stopPropagation()">
+    <div class="sheet-header">
+      <div class="sh-title" id="sheetTitle"></div>
+      <div class="sh-sub"   id="sheetSub"></div>
+    </div>
+    <div id="sheetBtns"></div>
+    <button class="sheet-cancel" onclick="closeActionSheet()">Abbrechen</button>
+  </div>
+</div>
+
+<!-- Tenant Name Modal -->
+<div class="overlay center hidden" id="nameOverlay" onclick="closeNameModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <h3 id="nameModalTitle">Mieter bearbeiten</h3>
+    <input class="modal-input" id="nameInput"  type="text" placeholder="Mieter 1" autocomplete="off">
+    <input class="modal-input" id="nameInput2" type="text" placeholder="Mieter 2 (Neubelegung, optional)" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn" style="background:#e5e5ea;color:#1c1c1e" onclick="closeNameModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveName()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════
+// Constants
+// ═══════════════════════════════════
+
+const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni',
+                   'Juli','August','September','Oktober','November','Dezember'];
+const WDAYS = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+const WDAYS_LONG = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+
+const STATUSES = [
+  { key: 'frei',    label: 'Frei',                            note: '',     dot: 'dot-frei',   cleaning: null },
+  { key: 'belegt',  label: 'Belegt',                          note: '',     dot: 'dot-belegt', cleaning: null },
+  { key: 'weg',     label: 'Ausgezogen → Komplettreinigung',  note: 'weg',  dot: 'dot-weg',    cleaning: 'full' },
+  { key: 'heim',    label: 'Heim → kleine Reinigung',         note: 'heim', dot: 'dot-heim',   cleaning: 'small' },
+  { key: 'we',      label: 'Wochenende zuhause → kl. Rein.', note: 'WE',   dot: 'dot-we',     cleaning: 'small' },
+];
+
+const DEFAULT_ROOMS = [
+  {id:1,  number:1,  beds:1},
+  {id:2,  number:2,  beds:1},
+  {id:3,  number:3,  beds:1},
+  {id:4,  number:4,  beds:2},
+  {id:5,  number:5,  beds:2},
+  {id:6,  number:6,  beds:2},
+  {id:7,  number:7,  beds:1},
+  {id:8,  number:8,  beds:1},
+  {id:9,  number:9,  beds:1},
+  {id:10, number:10, beds:1},
+  {id:11, number:11, beds:1},
+  {id:12, number:12, beds:1},
+  {id:14, number:14, beds:1},
+  {id:15, number:15, beds:1},
+  {id:16, number:16, beds:2},
+  {id:17, number:17, beds:2},
+  {id:18, number:18, beds:1},
+  {id:19, number:19, beds:1},
+  {id:20, number:20, beds:1},
+  {id:21, number:21, beds:1},
+];
+
+// ═══════════════════════════════════
+// State
+// ═══════════════════════════════════
+
+let curYear  = new Date().getFullYear();
+let curMonth = new Date().getMonth(); // 0-indexed
+let delYear  = curYear;
+let delMonth = curMonth;
+
+const SPLIT_SYM = { frei: '', belegt: '×', heim: 'o', we: 'o', weg: '−' };
+
+let rooms    = loadRooms();
+let occ      = {};
+let occ2     = {};
+let tenants  = {}; // loaded per month in renderGrid
+
+let pendingCell = null;   // {roomId, bed, day}
+let pendingNameKey = null;
+
+// ═══════════════════════════════════
+// Storage helpers
+// ═══════════════════════════════════
+
+function loadRooms() {
+  const v = localStorage.getItem('zb_rooms_v');
+  if (v !== '2') {
+    localStorage.removeItem('zb_rooms');
+    localStorage.setItem('zb_rooms_v', '2');
+  }
+  const s = localStorage.getItem('zb_rooms');
+  return s ? JSON.parse(s) : DEFAULT_ROOMS.map(r => ({...r}));
+}
+function saveRooms() { localStorage.setItem('zb_rooms', JSON.stringify(rooms)); }
+
+function occStorageKey(y, m)  { return 'zb_occ_'  + y + '_' + m; }
+function occ2StorageKey(y, m) { return 'zb_occ2_' + y + '_' + m; }
+function loadOcc(y, m)  { const s = localStorage.getItem(occStorageKey(y, m));  return s ? JSON.parse(s) : {}; }
+function loadOcc2(y, m) { const s = localStorage.getItem(occ2StorageKey(y, m)); return s ? JSON.parse(s) : {}; }
+function saveOcc()  { localStorage.setItem(occStorageKey(curYear, curMonth),  JSON.stringify(occ));  }
+function saveOcc2() { localStorage.setItem(occ2StorageKey(curYear, curMonth), JSON.stringify(occ2)); }
+
+function tenantsKey(y, m) { return 'zb_tenants_' + y + '_' + m; }
+function loadTenants(y, m) {
+  const s = localStorage.getItem(tenantsKey(y, m));
+  return s ? JSON.parse(s) : {};
+}
+function saveTenants() {
+  localStorage.setItem(tenantsKey(curYear, curMonth), JSON.stringify(tenants));
+}
+
+function cellKey(roomId, bed, day) { return roomId + ':' + bed + ':' + day; }
+function tenantKey(roomId, bed)     { return roomId + ':' + bed; }
+
+function statusInfo(key) { return STATUSES.find(s => s.key === key) || STATUSES[0]; }
+
+// ═══════════════════════════════════
+// Grid
+// ═══════════════════════════════════
+
+function renderGrid() {
+  occ     = loadOcc(curYear, curMonth);
+  occ2    = loadOcc2(curYear, curMonth);
+  tenants = loadTenants(curYear, curMonth);
+
+  const days = new Date(curYear, curMonth + 1, 0).getDate();
+  const _now = new Date();
+  const todayDay = (_now.getFullYear() === curYear && _now.getMonth() === curMonth)
+    ? _now.getDate() : -1;
+
+  // ── Header row ──
+  let hHtml = '<tr>';
+  hHtml += '<th class="col-room day-th"></th>';
+  for (let d = 1; d <= days; d++) {
+    const dow = new Date(curYear, curMonth, d).getDay();
+    const we  = (dow === 0 || dow === 6);
+    const tod = (d === todayDay);
+    let cls = 'day-th' + (we ? ' is-weekend' : '') + (tod ? ' is-today' : '');
+    hHtml += `<th class="${cls}">${d}<span class="weekday-label">${WDAYS[dow]}</span></th>`;
+  }
+  hHtml += '</tr>';
+  document.querySelector('#grid thead').innerHTML = hHtml;
+
+  // ── Body rows ──
+  const totalRows = rooms.reduce((sum, r) => sum + r.beds, 0);
+  let rowIndex = 0;
+  let bHtml = '';
+  let prevId = null;
+
+  for (const room of rooms) {
+    for (let bed = 0; bed < room.beds; bed++) {
+      const isLastRow = (rowIndex === totalRows - 1);
+      const divider = (prevId !== null && bed === 0) ? ' room-divider' : '';
+      bHtml += `<tr class="${divider}">`;
+
+      // Room info cell
+      const tk = tenantKey(room.id, bed);
+      const t  = tenants[tk] || {};
+      const t1 = t.t1 || '', t2 = t.t2 || '';
+      const numCls = (bed === 0) ? 'room-num' : 'room-num invisible';
+      const badgeHtml = (room.beds > 1) ? `<span class="bed-badge">B${bed+1}</span>` : '';
+      const t1Cls = t1 ? 't1-name' : 't1-name empty';
+      const t2Html = t2 ? `<span class="t2-name">${t2}</span>` : '';
+      bHtml += `<td class="col-room">
+        <div class="room-cell-inner">
+          <span class="${numCls}">${room.number}</span>
+          ${badgeHtml}
+          <div class="tenant-names" onclick="openNameModal(${room.id},${bed})">
+            <span class="${t1Cls}">${t1 || 'Mieter'}</span>
+            ${t2Html}
+          </div>
+          <button class="row-del-btn" onclick="deleteRow(${room.id},${bed})">✕</button>
+        </div>
+      </td>`;
+
+      // Day cells
+      for (let d = 1; d <= days; d++) {
+        const dow  = new Date(curYear, curMonth, d).getDay();
+        const we   = (dow === 0 || dow === 6);
+        const tod  = (todayDay > 0 && d === todayDay);
+        const past = (todayDay > 0 && d < todayDay);
+        const ck   = cellKey(room.id, bed, d);
+        const st1  = occ[ck]  || 'frei';
+        const st2  = occ2[ck] || 'frei';
+
+        let cls = 'occ-cell';
+        if (we)   cls += ' is-weekend';
+        if (past) cls += ' is-past';
+        if (tod)  cls += ' is-today-col' + (isLastRow ? ' is-today-last' : '');
+
+        let inner = '';
+        if (t2 && st1 === 'weg') {
+          cls += ' is-split';
+          inner = `<div class="sp1 sbc-${st1}">${SPLIT_SYM[st1]}</div>`
+                + `<div class="sp2 sbc-${st2}">${SPLIT_SYM[st2]}</div>`
+                + `<svg class="diag-line" viewBox="0 0 1 1" preserveAspectRatio="none">`
+                + `<line x1="1" y1="0" x2="0" y2="1" stroke="#aaa" stroke-width="0.03"/></svg>`;
+        } else {
+          cls += ' s-' + st1;
+        }
+        bHtml += `<td class="${cls}" onclick="handleCellClick(event,${room.id},${bed},${d})">${inner}</td>`;
+      }
+
+      bHtml += '</tr>';
+      rowIndex++;
+    }
+    prevId = room.id;
+  }
+  document.querySelector('#grid tbody').innerHTML = bHtml;
+}
+
+// ═══════════════════════════════════
+// Cell tap handler
+// ═══════════════════════════════════
+
+const CYCLE = ['frei', 'belegt', 'heim', 'weg'];
+
+function handleCellClick(e, roomId, bed, day) {
+  const t = tenants[tenantKey(roomId, bed)] || {};
+  if (!t.t2) { cycleT1(roomId, bed, day); return; }
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  if (x / rect.width + y / rect.height < 1) cycleT1(roomId, bed, day);
+  else cycleT2(roomId, bed, day);
+}
+
+function cycleT1(roomId, bed, day) {
+  const ck = cellKey(roomId, bed, day);
+  const next = CYCLE[(CYCLE.indexOf(occ[ck] || 'frei') + 1) % CYCLE.length];
+  if (next === 'frei') delete occ[ck]; else occ[ck] = next;
+  saveOcc(); renderGrid();
+}
+
+function cycleT2(roomId, bed, day) {
+  const ck = cellKey(roomId, bed, day);
+  const next = CYCLE[(CYCLE.indexOf(occ2[ck] || 'frei') + 1) % CYCLE.length];
+  if (next === 'frei') delete occ2[ck]; else occ2[ck] = next;
+  saveOcc2(); renderGrid();
+}
+
+// ═══════════════════════════════════
+// Action Sheet (für zukünftige Nutzung)
+// ═══════════════════════════════════
+
+function openActionSheet(roomId, bed, day) {
+  pendingCell = {roomId, bed, day};
+  const room = rooms.find(r => r.id === roomId);
+  const tk = tenantKey(roomId, bed);
+  const name = tenants[tk] || 'Zimmer ' + room.number;
+  const bedStr = room.beds > 1 ? ', Bett ' + (bed+1) : '';
+  const current = occ[cellKey(roomId, bed, day)] || 'frei';
+
+  document.getElementById('sheetTitle').textContent = name;
+  document.getElementById('sheetSub').textContent   = 'Zimmer ' + room.number + bedStr + ' – ' + day + '. ' + MONTHS_DE[curMonth];
+
+  let btns = '';
+  for (const s of STATUSES) {
+    const isCur = (s.key === current);
+    btns += `<button class="sheet-btn${isCur ? ' is-current' : ''}" onclick="setStatus('${s.key}')">
+      <span class="dot ${s.dot}"></span>${s.label}
+    </button>`;
+  }
+  document.getElementById('sheetBtns').innerHTML = btns;
+  document.getElementById('actionOverlay').classList.remove('hidden');
+}
+
+function setStatus(key) {
+  if (!pendingCell) return;
+  const ck = cellKey(pendingCell.roomId, pendingCell.bed, pendingCell.day);
+  if (key === 'frei') delete occ[ck];
+  else occ[ck] = key;
+  saveOcc();
+  closeActionSheet();
+  renderGrid();
+}
+
+function closeActionSheet() {
+  document.getElementById('actionOverlay').classList.add('hidden');
+  pendingCell = null;
+}
+
+// ═══════════════════════════════════
+// Tenant Name Modal
+// ═══════════════════════════════════
+
+function openNameModal(roomId, bed) {
+  pendingNameKey = tenantKey(roomId, bed);
+  const room = rooms.find(r => r.id === roomId);
+  const bedStr = room.beds > 1 ? ', Bett ' + (bed+1) : '';
+  const t = tenants[pendingNameKey] || {};
+  document.getElementById('nameModalTitle').textContent = 'Zimmer ' + room.number + bedStr;
+  document.getElementById('nameInput').value  = t.t1 || '';
+  document.getElementById('nameInput2').value = t.t2 || '';
+  document.getElementById('nameOverlay').classList.remove('hidden');
+  setTimeout(() => document.getElementById('nameInput').focus(), 80);
+}
+
+function saveName() {
+  if (!pendingNameKey) return;
+  const t1 = document.getElementById('nameInput').value.trim();
+  const t2 = document.getElementById('nameInput2').value.trim();
+  if (t1 || t2) tenants[pendingNameKey] = {t1, t2};
+  else delete tenants[pendingNameKey];
+  saveTenants();
+  closeNameModal();
+  renderGrid();
+}
+
+function closeNameModal() {
+  document.getElementById('nameOverlay').classList.add('hidden');
+  pendingNameKey = null;
+}
+
+// ═══════════════════════════════════
+// Cleaning View
+// ═══════════════════════════════════
+
+function cleaningCardsHtml(full, small) {
+  let h = '';
+  if (full.length > 0) {
+    h += `<div class="cleaning-section"><div class="section-label">Komplettreinigung – ausgezogen</div>`;
+    for (const e of full) {
+      h += `<div class="cleaning-card">
+        <div class="cleaning-icon icon-full">🧹</div>
+        <div class="cleaning-card-info"><h3>Zimmer ${e.room.number}${e.bedStr}</h3><p>${e.name}</p></div>
+      </div>`;
+    }
+    h += '</div>';
+  }
+  if (small.length > 0) {
+    h += `<div class="cleaning-section"><div class="section-label">Kleine Reinigung</div>`;
+    for (const e of small) {
+      const reason = e.st === 'heim' ? 'Mieter ist heim' : 'Wochenende zuhause';
+      h += `<div class="cleaning-card">
+        <div class="cleaning-icon icon-small">🫧</div>
+        <div class="cleaning-card-info"><h3>Zimmer ${e.room.number}${e.bedStr}</h3><p>${e.name} – ${reason}</p></div>
+      </div>`;
+    }
+    h += '</div>';
+  }
+  return h;
+}
+
+function cleaningForDay(curOcc, curTen, day) {
+  const full = [], small = [];
+  for (const room of rooms) {
+    for (let bed = 0; bed < room.beds; bed++) {
+      const st = curOcc[cellKey(room.id, bed, day)];
+      if (!st) continue;
+      const si = statusInfo(st);
+      if (!si.cleaning) continue;
+      const t = curTen[tenantKey(room.id, bed)] || {};
+      const name = t.t1 || 'Zimmer ' + room.number;
+      const nameDisplay = t.t2 ? name + ' → ' + t.t2 : name;
+      const bedStr = room.beds > 1 ? ', Bett ' + (bed+1) : '';
+      if (si.cleaning === 'full') full.push({room, bed, name: nameDisplay, bedStr, st});
+      else small.push({room, bed, name: nameDisplay, bedStr, st});
+    }
+  }
+  return {full, small};
+}
+
+function renderCleaning() {
+  const el = document.getElementById('cleaningContent');
+  const d   = new Date();
+  const isCurrentMonth = (curYear === d.getFullYear() && curMonth === d.getMonth());
+  const todayDay  = isCurrentMonth ? d.getDate() : null;
+  const startDay  = todayDay || 1;
+  const endDay    = new Date(curYear, curMonth + 1, 0).getDate();
+
+  const curOcc = loadOcc(curYear, curMonth);
+  const curTen = loadTenants(curYear, curMonth);
+
+  let html = '';
+
+  for (let day = startDay; day <= endDay; day++) {
+    const isToday = (day === todayDay);
+    const dateObj = new Date(curYear, curMonth, day);
+    const {full, small} = cleaningForDay(curOcc, curTen, day);
+
+    if (!isToday && full.length === 0 && small.length === 0) continue;
+
+    const dayStr   = day + '. ' + MONTHS_DE[curMonth] + (isToday ? ' ' + curYear : '');
+    const wdayStr  = WDAYS_LONG[dateObj.getDay()];
+    const label    = isToday ? 'Heute – ' + wdayStr + ', ' + dayStr : wdayStr + ', ' + dayStr;
+    const hdrCls   = isToday ? 'cleaning-date-header' : 'future-date-header';
+
+    html += `<div class="${hdrCls}">${label}</div>`;
+
+    if (full.length === 0 && small.length === 0) {
+      html += `<div class="cleaning-sub" style="margin-bottom:16px">✅ Keine Reinigung</div>`;
+    } else {
+      html += cleaningCardsHtml(full, small);
+    }
+  }
+
+  if (!html) {
+    html = `<div class="empty-state"><div class="emoji">✅</div><p>Keine Reinigungen geplant</p></div>`;
+  }
+
+  if (!isCurrentMonth && !todayDay) {
+    html = `<div class="cleaning-date-header">${MONTHS_DE[curMonth]} ${curYear}</div>`
+         + `<div class="cleaning-sub">Anderer Monat – alle Reinigungen des Monats</div>` + html;
+  }
+
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════
+// Settings View
+// ═══════════════════════════════════
+
+function deleteRow(roomId, bed) {
+  if (!confirm('Zeile für ' + MONTHS_DE[curMonth] + ' ' + curYear + ' löschen?\nBelegung und Mieternamen werden entfernt.')) return;
+  const prefix = roomId + ':' + bed + ':';
+  Object.keys(occ).forEach(k  => { if (k.startsWith(prefix)) delete occ[k];  });
+  Object.keys(occ2).forEach(k => { if (k.startsWith(prefix)) delete occ2[k]; });
+  saveOcc(); saveOcc2();
+  delete tenants[tenantKey(roomId, bed)];
+  saveTenants();
+  renderGrid();
+}
+
+function changeDelMonth(delta) {
+  delMonth += delta;
+  if (delMonth < 0)  { delMonth = 11; delYear--; }
+  if (delMonth > 11) { delMonth = 0;  delYear++; }
+  const el = document.getElementById('delMonthLabel');
+  if (el) el.textContent = MONTHS_DE[delMonth] + ' ' + delYear;
+}
+
+function deleteMonthData() {
+  const label = MONTHS_DE[delMonth] + ' ' + delYear;
+  if (!confirm(label + ' wirklich löschen?\nBelegung und Mieternamen dieses Monats werden entfernt.')) return;
+  localStorage.removeItem(occStorageKey(delYear, delMonth));
+  localStorage.removeItem(occ2StorageKey(delYear, delMonth));
+  localStorage.removeItem(tenantsKey(delYear, delMonth));
+  if (delYear === curYear && delMonth === curMonth) {
+    occ = {}; occ2 = {}; tenants = {};
+    renderGrid();
+  }
+  alert(label + ' wurde gelöscht.');
+}
+
+function renderSettings() {
+  const el = document.getElementById('settingsContent');
+  let html = '<div style="margin-bottom:8px"><div class="section-label" style="margin-bottom:8px">Zimmer</div><div class="settings-list">';
+
+  for (const room of rooms) {
+    html += `<div class="settings-row">
+      <span class="s-label" style="font-weight:700;font-size:16px">${room.number}</span>
+      <div class="beds-control">
+        <span class="lbl">Betten:</span>
+        <button class="beds-btn beds-minus" onclick="changeBeds(${room.id},-1)">−</button>
+        <span class="beds-count" id="bc-${room.id}">${room.beds}</span>
+        <button class="beds-btn beds-plus" onclick="changeBeds(${room.id},+1)">+</button>
+      </div>
+      <button class="del-btn" onclick="deleteRoom(${room.id})">✕</button>
+    </div>`;
+  }
+
+  html += `</div></div>
+  <div class="section-label" style="margin-bottom:8px">Zimmer hinzufügen</div>
+  <div class="add-row">
+    <input type="number" id="newRoomNum" placeholder="Zimmernummer (z. B. 19)" min="1" max="99">
+    <button class="btn btn-primary" onclick="addRoom()">+ Hinzufügen</button>
+  </div>
+  <div class="section-label" style="margin-bottom:8px;margin-top:8px">Monat löschen</div>
+  <div class="settings-list">
+    <div class="settings-row">
+      <div class="month-del-nav">
+        <button class="nav-btn-sm" onclick="changeDelMonth(-1)">‹</button>
+        <span id="delMonthLabel">${MONTHS_DE[delMonth]} ${delYear}</span>
+        <button class="nav-btn-sm" onclick="changeDelMonth(+1)">›</button>
+      </div>
+      <button class="btn btn-danger" onclick="deleteMonthData()">Löschen</button>
+    </div>
+  </div>
+  <div class="section-label" style="margin-bottom:8px;margin-top:8px">Alle Daten löschen</div>
+  <div class="settings-list">
+    <div class="settings-row">
+      <span class="s-label">Alle Monate löschen</span>
+      <button class="btn btn-danger" onclick="clearOccData()">Löschen</button>
+    </div>
+  </div>
+
+  <div class="section-label" style="margin-bottom:8px;margin-top:8px">Bedienung</div>
+  <div class="help-box">
+    <div class="help-row">
+      <div class="help-dots">
+        <span class="help-dot" style="background:#34c759">×</span>
+        <span class="help-dot" style="background:#ff9500">o</span>
+        <span class="help-dot" style="background:#ff3b30">−</span>
+        <span class="help-dot" style="background:#e8e8e8"> </span>
+      </div>
+      <div class="help-text">
+        <strong>Zelle antippen</strong> wechselt den Status durch:<br>
+        <b style="color:#34c759">×</b> belegt &nbsp;→&nbsp; <b style="color:#ff9500">o</b> heim &nbsp;→&nbsp; <b style="color:#ff3b30">−</b> weg &nbsp;→&nbsp; leer
+      </div>
+    </div>
+    <div class="help-divider"></div>
+    <div class="help-row">
+      <div class="help-icon">👤</div>
+      <div class="help-text">
+        <strong>Mieter­name antippen</strong> öffnet die Bearbeitung.<br>
+        <em>Mieter 2</em> eintragen für Neubelegung im laufenden Monat.
+      </div>
+    </div>
+    <div class="help-divider"></div>
+    <div class="help-row">
+      <div class="help-icon">↕</div>
+      <div class="help-text">
+        <strong>Geteilte Zelle</strong> erscheint automatisch, wenn Mieter 2 eingetragen ist und die Zelle ein <b style="color:#ff3b30">−</b> hat.<br>
+        Obere Hälfte = Mieter 1, untere Hälfte = Mieter 2.
+      </div>
+    </div>
+    <div class="help-divider"></div>
+    <div class="help-row">
+      <div class="help-icon">🧹</div>
+      <div class="help-text">
+        <strong>Reinigung</strong> zeigt heutige und geplante Reinigungen.<br>
+        <b style="color:#ff3b30">−</b> = Komplettreinigung &nbsp;·&nbsp; <b style="color:#ff9500">o</b> = kleine Reinigung
+      </div>
+    </div>
+    <div class="help-divider"></div>
+    <div class="help-row">
+      <div class="help-icon">‹ ›</div>
+      <div class="help-text">
+        <strong>Pfeile oben</strong> wechseln den Monat.<br>
+        Daten werden pro Monat getrennt gespeichert.
+      </div>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+function changeBeds(roomId, delta) {
+  const r = rooms.find(r => r.id === roomId);
+  if (!r) return;
+  r.beds = Math.max(1, Math.min(4, r.beds + delta));
+  const el = document.getElementById('bc-' + roomId);
+  if (el) el.textContent = r.beds;
+  saveRooms();
+  renderGrid();
+}
+
+function deleteRoom(roomId) {
+  if (!confirm('Zimmer wirklich entfernen?')) return;
+  rooms = rooms.filter(r => r.id !== roomId);
+  saveRooms();
+  renderSettings();
+  renderGrid();
+}
+
+function addRoom() {
+  const input = document.getElementById('newRoomNum');
+  const num = parseInt(input.value);
+  if (!num || num < 1 || num > 99) { alert('Bitte eine Zimmernummer zwischen 1 und 99 eingeben.'); return; }
+  if (rooms.find(r => r.number === num)) { alert('Zimmer ' + num + ' existiert bereits.'); return; }
+  rooms.push({id: Date.now(), number: num, beds: 1});
+  rooms.sort((a, b) => a.number - b.number);
+  saveRooms();
+  input.value = '';
+  renderSettings();
+  renderGrid();
+}
+
+function clearOccData() {
+  if (!confirm('Alle Belegungsdaten löschen? Mieter­namen und Zimmer bleiben erhalten.')) return;
+  Object.keys(localStorage).filter(k => k.startsWith('zb_occ')).forEach(k => localStorage.removeItem(k));
+  occ = {};
+  renderGrid();
+  alert('Belegungsdaten gelöscht.');
+}
+
+// ═══════════════════════════════════
+// Navigation
+// ═══════════════════════════════════
+
+function changeMonth(delta) {
+  curMonth += delta;
+  if (curMonth < 0)  { curMonth = 11; curYear--; }
+  if (curMonth > 11) { curMonth = 0;  curYear++; }
+  updateMonthLabel();
+  renderGrid();
+  if (document.querySelector('[data-tab="reinigung"]').classList.contains('active')) renderCleaning();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(el =>
+    el.classList.toggle('active', el.dataset.tab === tab));
+  document.querySelectorAll('.tab-pane').forEach(el =>
+    el.classList.toggle('active', el.id === 'pane-' + tab));
+  if (tab === 'reinigung')    renderCleaning();
+  if (tab === 'einstellungen') renderSettings();
+}
+
+function updateMonthLabel() {
+  document.getElementById('monthLabel').textContent = MONTHS_DE[curMonth] + ' ' + curYear;
+}
+
+// ═══════════════════════════════════
+// Key handlers
+// ═══════════════════════════════════
+
+['nameInput','nameInput2'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter')  saveName();
+    if (e.key === 'Escape') closeNameModal();
+  });
+});
+
+// ═══════════════════════════════════
+// Init
+// ═══════════════════════════════════
+
+updateMonthLabel();
+renderGrid();
+</script>
+</body>
+</html>
