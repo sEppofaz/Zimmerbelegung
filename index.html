@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Zimmerbelegung</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Zimmerbelegung">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#152f56">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1010,6 +1015,91 @@ function updateMonthLabel() {
 
 updateMonthLabel();
 renderGrid();
+generateIcon();
+
+// ═══════════════════════════════════
+// App Icon (Canvas – kein externes Bild nötig)
+// ═══════════════════════════════════
+
+function generateIcon() {
+  const S = 512;
+  const cv = document.createElement('canvas');
+  cv.width = S; cv.height = S;
+  const c = cv.getContext('2d');
+
+  // Hilfsfunktion: abgerundetes Rechteck
+  function rr(x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x+r, y);
+    c.lineTo(x+w-r, y); c.arcTo(x+w, y,   x+w, y+r,   r);
+    c.lineTo(x+w, y+h-r); c.arcTo(x+w, y+h, x+w-r, y+h, r);
+    c.lineTo(x+r, y+h); c.arcTo(x,   y+h, x,   y+h-r, r);
+    c.lineTo(x, y+r);   c.arcTo(x,   y,   x+r, y,     r);
+    c.closePath();
+  }
+
+  // Hintergrund – Farbverlauf blau (Gasthaus-Lehner-Blau)
+  rr(0, 0, S, S, 108);
+  const bg = c.createLinearGradient(0, 0, S, S);
+  bg.addColorStop(0, '#152f56');
+  bg.addColorStop(1, '#1e73be');
+  c.fillStyle = bg; c.fill();
+
+  // Schornstein
+  c.fillStyle = '#8a9e40';
+  c.fillRect(308, 68, 30, 88);
+
+  // Dach – Olivgrün (Gasthaus-Lehner-Akzentfarbe)
+  c.beginPath();
+  c.moveTo(256, 50);
+  c.lineTo(444, 220);
+  c.lineTo(68, 220);
+  c.closePath();
+  c.fillStyle = '#adb755'; c.fill();
+
+  // Dach-Schattenseite
+  c.beginPath();
+  c.moveTo(256, 50); c.lineTo(444, 220); c.lineTo(256, 220);
+  c.closePath();
+  c.fillStyle = 'rgba(0,0,0,0.13)'; c.fill();
+
+  // Gebäudekörper
+  rr(86, 214, 340, 256, 5);
+  c.fillStyle = 'rgba(255,255,255,0.13)'; c.fill();
+
+  // Zimmer-Raster 3 × 3
+  const cW = 88, cH = 50, gX = 11, gY = 10;
+  const sX = 112, sY = 230;
+  const palette = [
+    ['#34c759', '#34c759', '#34c759'],
+    ['#34c759', '#ff3b30', 'rgba(255,255,255,0.18)'],
+    ['#34c759', '#ff9500', '#34c759'],
+  ];
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      rr(sX + col*(cW+gX), sY + row*(cH+gY), cW, cH, 9);
+      c.fillStyle = palette[row][col]; c.fill();
+    }
+  }
+
+  // Tür
+  rr(214, 416, 84, 54, 8);
+  c.fillStyle = 'rgba(0,0,0,0.38)'; c.fill();
+
+  // Türknauf – Olivgrün
+  c.beginPath();
+  c.arc(241, 443, 6, 0, Math.PI*2);
+  c.fillStyle = '#adb755'; c.fill();
+
+  // Als apple-touch-icon und favicon setzen
+  const url = cv.toDataURL('image/png');
+  const ati = document.createElement('link');
+  ati.rel = 'apple-touch-icon'; ati.href = url;
+  document.head.appendChild(ati);
+  const fav = document.createElement('link');
+  fav.rel = 'icon'; fav.type = 'image/png'; fav.href = url;
+  document.head.appendChild(fav);
+}
 </script>
 </body>
 </html>
