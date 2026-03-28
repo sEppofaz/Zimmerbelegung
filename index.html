@@ -20,14 +20,14 @@
     .header {
       background: #1c1c1e;
       color: #fff;
-      padding: 10px 16px;
+      padding: 8px 16px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0 8px;
       flex-shrink: 0;
-      min-height: 52px;
     }
-    .header h1 { font-size: 17px; font-weight: 700; }
+    .header h1 { flex: 1; font-size: 17px; font-weight: 700; white-space: nowrap; }
     .month-nav { display: flex; align-items: center; gap: 6px; }
     .nav-btn {
       background: rgba(255,255,255,0.15);
@@ -37,6 +37,17 @@
     }
     .nav-btn:active { background: rgba(255,255,255,0.3); }
     #monthLabel { font-size: 16px; font-weight: 600; min-width: 160px; text-align: center; }
+
+    /* Smartphone Hochformat */
+    @media (max-width: 540px) {
+      .month-nav {
+        width: 100%;
+        justify-content: center;
+        padding: 4px 0;
+      }
+      #monthLabel { min-width: 130px; font-size: 15px; }
+      .header h1 { font-size: 15px; }
+    }
 
     /* ── Sync indicator ── */
     #syncIndicator {
@@ -428,16 +439,14 @@
 <!-- Header -->
 <header class="header">
   <h1>Zimmerbelegung</h1>
-  <div style="display:flex;align-items:center;gap:8px">
-    <button id="syncIndicator" class="local" onclick="onSyncClick()" title="Dropbox-Status">
-      <span class="sync-dot"></span>
-      <span id="syncLabel">Lokal</span>
-    </button>
-    <div class="month-nav">
-      <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
-      <span id="monthLabel">—</span>
-      <button class="nav-btn" onclick="changeMonth(+1)">›</button>
-    </div>
+  <button id="syncIndicator" class="local" onclick="onSyncClick()" title="Dropbox-Status">
+    <span class="sync-dot"></span>
+    <span id="syncLabel">Lokal</span>
+  </button>
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <span id="monthLabel">—</span>
+    <button class="nav-btn" onclick="changeMonth(+1)">›</button>
   </div>
 </header>
 
