@@ -4,11 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Zimmerbelegung</title>
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Zimmerbelegung">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#152f56">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -42,6 +37,21 @@
     }
     .nav-btn:active { background: rgba(255,255,255,0.3); }
     #monthLabel { font-size: 16px; font-weight: 600; min-width: 160px; text-align: center; }
+
+    /* ── Sync indicator ── */
+    #syncIndicator {
+      font-size: 11px; padding: 2px 7px; border-radius: 10px;
+      background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7);
+      display: flex; align-items: center; gap: 4px; cursor: pointer;
+      border: none; flex-shrink: 0;
+    }
+    #syncIndicator.synced    { background: rgba(52,199,89,0.25);  color: #34c759; }
+    #syncIndicator.syncing   { background: rgba(255,149,0,0.25);  color: #ff9500; }
+    #syncIndicator.error     { background: rgba(255,59,48,0.25);  color: #ff3b30; }
+    #syncIndicator.local     { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.55); }
+    .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink:0; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    #syncIndicator.syncing .sync-dot { animation: pulse 1s infinite; }
 
     /* ── Tabs ── */
     .tabs {
@@ -258,6 +268,7 @@
     }
     .btn-primary { background: #007aff; color: #fff; }
     .btn-danger  { background: #ff3b30; color: #fff; }
+    .btn-secondary { background: #e5e5ea; color: #1c1c1e; }
     .btn:active  { opacity: 0.7; }
     .row-del-btn {
       background: none; border: none; color: #ff3b30;
@@ -273,6 +284,55 @@
       background: #e5e5ea; border: none; color: #1c1c1e;
       font-size: 17px; width: 30px; height: 30px;
       border-radius: 7px; cursor: pointer;
+    }
+
+    /* ── Dropbox section in settings ── */
+    .dbx-status-row {
+      display: flex; align-items: center; gap: 12px;
+      background: #fff; border-radius: 12px; padding: 14px 16px;
+      margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .dbx-logo {
+      width: 38px; height: 38px; background: #0061ff; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .dbx-logo svg { width: 22px; height: 22px; fill: #fff; }
+    .dbx-info { flex: 1; min-width: 0; }
+    .dbx-info strong { font-size: 15px; color: #1c1c1e; display: block; }
+    .dbx-info small  { font-size: 12px; color: #8e8e93; }
+    .dbx-appkey-row {
+      display: flex; gap: 8px; align-items: center;
+      background: #fff; border-radius: 12px; padding: 12px 16px;
+      margin-bottom: 8px;
+    }
+    .dbx-appkey-row input {
+      flex: 1; border: 1px solid #d1d1d6; border-radius: 8px;
+      padding: 10px 12px; font-size: 15px; -webkit-appearance: none;
+      font-family: 'Menlo', monospace;
+    }
+
+    /* ── Anleitung ── */
+    .guide-box {
+      background: #fff; border-radius: 12px; overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .guide-step {
+      padding: 12px 16px; border-bottom: 1px solid #f2f2f7;
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .guide-step:last-child { border-bottom: none; }
+    .step-num {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #007aff; color: #fff;
+      font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .step-text { font-size: 13px; color: #3a3a3c; line-height: 1.5; flex: 1; }
+    .step-text a { color: #007aff; text-decoration: none; }
+    .step-text code {
+      background: #f2f2f7; padding: 1px 5px; border-radius: 4px;
+      font-family: 'Menlo', monospace; font-size: 12px;
     }
 
     /* ── Help box ── */
@@ -352,6 +412,15 @@
       -webkit-appearance: none;
     }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #1c1c1e; color: #fff; padding: 10px 18px; border-radius: 20px;
+      font-size: 14px; z-index: 200; opacity: 0; transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   </style>
 </head>
 <body>
@@ -359,10 +428,16 @@
 <!-- Header -->
 <header class="header">
   <h1>Zimmerbelegung</h1>
-  <div class="month-nav">
-    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
-    <span id="monthLabel">—</span>
-    <button class="nav-btn" onclick="changeMonth(+1)">›</button>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button id="syncIndicator" class="local" onclick="onSyncClick()" title="Dropbox-Status">
+      <span class="sync-dot"></span>
+      <span id="syncLabel">Lokal</span>
+    </button>
+    <div class="month-nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+      <span id="monthLabel">—</span>
+      <button class="nav-btn" onclick="changeMonth(+1)">›</button>
+    </div>
   </div>
 </header>
 
@@ -409,11 +484,14 @@
     <input class="modal-input" id="nameInput"  type="text" placeholder="Mieter 1" autocomplete="off">
     <input class="modal-input" id="nameInput2" type="text" placeholder="Mieter 2 (Neubelegung, optional)" autocomplete="off">
     <div class="modal-actions">
-      <button class="btn" style="background:#e5e5ea;color:#1c1c1e" onclick="closeNameModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="saveName()">Speichern</button>
+      <button class="btn btn-secondary" onclick="closeNameModal()">Abbrechen</button>
+      <button class="btn btn-primary"   onclick="saveName()">Speichern</button>
     </div>
   </div>
 </div>
+
+<!-- Toast -->
+<div id="toast"></div>
 
 <script>
 // ═══════════════════════════════════
@@ -426,42 +504,32 @@ const WDAYS = ['So','Mo','Di','Mi','Do','Fr','Sa'];
 const WDAYS_LONG = ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
 
 const STATUSES = [
-  { key: 'frei',    label: 'Frei',                            note: '',     dot: 'dot-frei',   cleaning: null },
-  { key: 'belegt',  label: 'Belegt',                          note: '',     dot: 'dot-belegt', cleaning: null },
-  { key: 'weg',     label: 'Ausgezogen → Komplettreinigung',  note: 'weg',  dot: 'dot-weg',    cleaning: 'full' },
-  { key: 'heim',    label: 'Heim → kleine Reinigung',         note: 'heim', dot: 'dot-heim',   cleaning: 'small' },
-  { key: 'we',      label: 'Wochenende zuhause → kl. Rein.', note: 'WE',   dot: 'dot-we',     cleaning: 'small' },
+  { key: 'frei',    label: 'Frei',                            dot: 'dot-frei',   cleaning: null },
+  { key: 'belegt',  label: 'Belegt',                          dot: 'dot-belegt', cleaning: null },
+  { key: 'weg',     label: 'Ausgezogen → Komplettreinigung',  dot: 'dot-weg',    cleaning: 'full' },
+  { key: 'heim',    label: 'Heim → kleine Reinigung',         dot: 'dot-heim',   cleaning: 'small' },
+  { key: 'we',      label: 'Wochenende zuhause → kl. Rein.', dot: 'dot-we',     cleaning: 'small' },
 ];
 
 const DEFAULT_ROOMS = [
-  {id:1,  number:1,  beds:1},
-  {id:2,  number:2,  beds:1},
-  {id:3,  number:3,  beds:1},
-  {id:4,  number:4,  beds:2},
-  {id:5,  number:5,  beds:2},
-  {id:6,  number:6,  beds:2},
-  {id:7,  number:7,  beds:1},
-  {id:8,  number:8,  beds:1},
-  {id:9,  number:9,  beds:1},
-  {id:10, number:10, beds:1},
-  {id:11, number:11, beds:1},
-  {id:12, number:12, beds:1},
-  {id:14, number:14, beds:1},
-  {id:15, number:15, beds:1},
-  {id:16, number:16, beds:2},
-  {id:17, number:17, beds:2},
-  {id:18, number:18, beds:1},
-  {id:19, number:19, beds:1},
-  {id:20, number:20, beds:1},
-  {id:21, number:21, beds:1},
+  {id:1,  number:1,  beds:1},{id:2,  number:2,  beds:1},{id:3,  number:3,  beds:1},
+  {id:4,  number:4,  beds:2},{id:5,  number:5,  beds:2},{id:6,  number:6,  beds:2},
+  {id:7,  number:7,  beds:1},{id:8,  number:8,  beds:1},{id:9,  number:9,  beds:1},
+  {id:10, number:10, beds:1},{id:11, number:11, beds:1},{id:12, number:12, beds:1},
+  {id:14, number:14, beds:1},{id:15, number:15, beds:1},{id:16, number:16, beds:2},
+  {id:17, number:17, beds:2},{id:18, number:18, beds:1},{id:19, number:19, beds:1},
+  {id:20, number:20, beds:1},{id:21, number:21, beds:1},
 ];
+
+const DBX_FOLDER  = '/ZimmerbelegungApp';
+const DBX_SYNC_DELAY = 2000; // ms debounce before upload
 
 // ═══════════════════════════════════
 // State
 // ═══════════════════════════════════
 
 let curYear  = new Date().getFullYear();
-let curMonth = new Date().getMonth(); // 0-indexed
+let curMonth = new Date().getMonth();
 let delYear  = curYear;
 let delMonth = curMonth;
 
@@ -470,46 +538,287 @@ const SPLIT_SYM = { frei: '', belegt: '×', heim: 'o', we: 'o', weg: '−' };
 let rooms    = loadRooms();
 let occ      = {};
 let occ2     = {};
-let tenants  = {}; // loaded per month in renderGrid
+let tenants  = {};
 
-let pendingCell = null;   // {roomId, bed, day}
+let pendingCell    = null;
 let pendingNameKey = null;
 
+// Dropbox
+let dbxToken      = localStorage.getItem('zb_dbx_token')  || null;
+let dbxAppKey     = localStorage.getItem('zb_dbx_appkey') || '';
+let dbxSyncTimer  = null;
+let dbxSyncing    = false;
+
 // ═══════════════════════════════════
-// Storage helpers
+// Toast
+// ═══════════════════════════════════
+
+let _toastTimer = null;
+function showToast(msg, duration = 2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ═══════════════════════════════════
+// Storage helpers (localStorage)
 // ═══════════════════════════════════
 
 function loadRooms() {
   const v = localStorage.getItem('zb_rooms_v');
-  if (v !== '2') {
-    localStorage.removeItem('zb_rooms');
-    localStorage.setItem('zb_rooms_v', '2');
-  }
+  if (v !== '2') { localStorage.removeItem('zb_rooms'); localStorage.setItem('zb_rooms_v','2'); }
   const s = localStorage.getItem('zb_rooms');
   return s ? JSON.parse(s) : DEFAULT_ROOMS.map(r => ({...r}));
 }
-function saveRooms() { localStorage.setItem('zb_rooms', JSON.stringify(rooms)); }
-
-function occStorageKey(y, m)  { return 'zb_occ_'  + y + '_' + m; }
-function occ2StorageKey(y, m) { return 'zb_occ2_' + y + '_' + m; }
-function loadOcc(y, m)  { const s = localStorage.getItem(occStorageKey(y, m));  return s ? JSON.parse(s) : {}; }
-function loadOcc2(y, m) { const s = localStorage.getItem(occ2StorageKey(y, m)); return s ? JSON.parse(s) : {}; }
-function saveOcc()  { localStorage.setItem(occStorageKey(curYear, curMonth),  JSON.stringify(occ));  }
-function saveOcc2() { localStorage.setItem(occ2StorageKey(curYear, curMonth), JSON.stringify(occ2)); }
-
-function tenantsKey(y, m) { return 'zb_tenants_' + y + '_' + m; }
-function loadTenants(y, m) {
-  const s = localStorage.getItem(tenantsKey(y, m));
-  return s ? JSON.parse(s) : {};
-}
-function saveTenants() {
-  localStorage.setItem(tenantsKey(curYear, curMonth), JSON.stringify(tenants));
+function saveRooms() {
+  localStorage.setItem('zb_rooms', JSON.stringify(rooms));
+  scheduleSyncAll();
 }
 
-function cellKey(roomId, bed, day) { return roomId + ':' + bed + ':' + day; }
-function tenantKey(roomId, bed)     { return roomId + ':' + bed; }
+function occKey(y,m)  { return 'zb_occ_'  + y + '_' + m; }
+function occ2Key(y,m) { return 'zb_occ2_' + y + '_' + m; }
+function loadOcc(y,m)  { const s = localStorage.getItem(occKey(y,m));  return s ? JSON.parse(s) : {}; }
+function loadOcc2(y,m) { const s = localStorage.getItem(occ2Key(y,m)); return s ? JSON.parse(s) : {}; }
+function saveOcc()  { localStorage.setItem(occKey(curYear,curMonth),  JSON.stringify(occ));  scheduleSync(); }
+function saveOcc2() { localStorage.setItem(occ2Key(curYear,curMonth), JSON.stringify(occ2)); scheduleSync(); }
 
+function tenantsKey(y,m) { return 'zb_tenants_' + y + '_' + m; }
+function loadTenants(y,m) { const s = localStorage.getItem(tenantsKey(y,m)); return s ? JSON.parse(s) : {}; }
+function saveTenants() { localStorage.setItem(tenantsKey(curYear,curMonth), JSON.stringify(tenants)); scheduleSync(); }
+
+function cellKey(roomId,bed,day) { return roomId+':'+bed+':'+day; }
+function tenantKey(roomId,bed)   { return roomId+':'+bed; }
 function statusInfo(key) { return STATUSES.find(s => s.key === key) || STATUSES[0]; }
+
+// ═══════════════════════════════════
+// Dropbox integration
+// ═══════════════════════════════════
+
+// --- PKCE helpers ---
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function generatePKCE() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const hashed   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const challenge = b64url(hashed);
+  return {verifier, challenge};
+}
+
+async function dbxLogin() {
+  if (!dbxAppKey) { showToast('❌ Bitte zuerst App-Key eingeben'); return; }
+  const {verifier, challenge} = await generatePKCE();
+  sessionStorage.setItem('dbx_verifier', verifier);
+  const params = new URLSearchParams({
+    client_id:             dbxAppKey,
+    response_type:         'code',
+    code_challenge:        challenge,
+    code_challenge_method: 'S256',
+    redirect_uri:          location.href.split('?')[0].split('#')[0],
+    token_access_type:     'offline',
+  });
+  location.href = 'https://www.dropbox.com/oauth2/authorize?' + params;
+}
+
+async function dbxExchangeCode(code) {
+  const verifier = sessionStorage.getItem('dbx_verifier');
+  if (!verifier) return;
+  sessionStorage.removeItem('dbx_verifier');
+  setSyncState('syncing','Verbinden…');
+  try {
+    const r = await fetch('https://api.dropboxapi.com/oauth2/token', {
+      method: 'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        code, grant_type:'authorization_code',
+        client_id: dbxAppKey,
+        redirect_uri: location.href.split('?')[0].split('#')[0],
+        code_verifier: verifier,
+      })
+    });
+    const d = await r.json();
+    if (d.access_token) {
+      dbxToken = d.access_token;
+      localStorage.setItem('zb_dbx_token', dbxToken);
+      if (d.refresh_token) localStorage.setItem('zb_dbx_refresh', d.refresh_token);
+      // Clean URL
+      history.replaceState(null,'', location.pathname);
+      setSyncState('syncing','Lade Daten…');
+      await dbxDownloadAll();
+      setSyncState('synced','Dropbox ✓');
+      showToast('✅ Dropbox verbunden – Daten geladen');
+      renderGrid();
+      renderSettings();
+    } else {
+      throw new Error(d.error_description || 'Auth fehlgeschlagen');
+    }
+  } catch(e) {
+    setSyncState('error','Fehler');
+    showToast('❌ ' + e.message, 4000);
+  }
+}
+
+async function dbxRefreshToken() {
+  const refresh = localStorage.getItem('zb_dbx_refresh');
+  if (!refresh || !dbxAppKey) return false;
+  try {
+    const r = await fetch('https://api.dropboxapi.com/oauth2/token', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refresh,
+        client_id: dbxAppKey,
+      })
+    });
+    const d = await r.json();
+    if (d.access_token) {
+      dbxToken = d.access_token;
+      localStorage.setItem('zb_dbx_token', dbxToken);
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+async function dbxFetch(url, opts={}, retry=true) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: { Authorization: 'Bearer '+dbxToken, ...(opts.headers||{}) }
+  });
+  if (r.status === 401 && retry) {
+    const ok = await dbxRefreshToken();
+    if (ok) return dbxFetch(url, opts, false);
+    dbxLogout(true);
+    return null;
+  }
+  return r;
+}
+
+// Upload a single file to Dropbox
+async function dbxUpload(filename, data) {
+  const json = JSON.stringify(data);
+  await dbxFetch('https://content.dropboxapi.com/2/files/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': JSON.stringify({
+        path: DBX_FOLDER + '/' + filename,
+        mode: 'overwrite',
+        autorename: false,
+        mute: true,
+      })
+    },
+    body: json
+  });
+}
+
+// Download a single file; returns parsed JSON or null
+async function dbxDownload(filename) {
+  const r = await dbxFetch('https://content.dropboxapi.com/2/files/download', {
+    method: 'POST',
+    headers: {
+      'Dropbox-API-Arg': JSON.stringify({ path: DBX_FOLDER + '/' + filename })
+    }
+  });
+  if (!r || r.status === 409) return null; // file not found
+  if (!r.ok) return null;
+  try { return await r.json(); } catch(e) { return null; }
+}
+
+// Collect all localStorage keys that belong to the app
+function appStorageSnapshot() {
+  const snap = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('zb_') && !k.startsWith('zb_dbx')) {
+      snap[k] = localStorage.getItem(k);
+    }
+  }
+  return snap;
+}
+
+function applySnapshot(snap) {
+  // Remove old zb_ keys (except dbx settings)
+  Object.keys(localStorage).filter(k => k.startsWith('zb_') && !k.startsWith('zb_dbx'))
+    .forEach(k => localStorage.removeItem(k));
+  for (const [k,v] of Object.entries(snap)) localStorage.setItem(k, v);
+  // Reload state
+  rooms = loadRooms();
+  occ   = loadOcc(curYear, curMonth);
+  occ2  = loadOcc2(curYear, curMonth);
+  tenants = loadTenants(curYear, curMonth);
+}
+
+async function dbxUploadAll() {
+  if (!dbxToken) return;
+  setSyncState('syncing', 'Speichern…');
+  try {
+    await dbxUpload('data.json', appStorageSnapshot());
+    setSyncState('synced', 'Dropbox ✓');
+  } catch(e) {
+    setSyncState('error', 'Sync-Fehler');
+  }
+}
+
+async function dbxDownloadAll() {
+  const snap = await dbxDownload('data.json');
+  if (snap) applySnapshot(snap);
+}
+
+function scheduleSync() {
+  if (!dbxToken) return;
+  clearTimeout(dbxSyncTimer);
+  dbxSyncTimer = setTimeout(dbxUploadAll, DBX_SYNC_DELAY);
+}
+
+function scheduleSyncAll() {
+  scheduleSync();
+}
+
+function setSyncState(state, label) {
+  const el  = document.getElementById('syncIndicator');
+  const lbl = document.getElementById('syncLabel');
+  el.className = state;
+  lbl.textContent = label;
+}
+
+function dbxLogout(silent=false) {
+  dbxToken = null;
+  localStorage.removeItem('zb_dbx_token');
+  localStorage.removeItem('zb_dbx_refresh');
+  setSyncState('local', 'Lokal');
+  if (!silent) { showToast('Dropbox getrennt'); renderSettings(); }
+}
+
+function onSyncClick() {
+  if (dbxToken) {
+    if (confirm('Jetzt mit Dropbox synchronisieren?')) dbxUploadAll();
+  } else {
+    switchTab('einstellungen');
+  }
+}
+
+// ── On-load: handle OAuth redirect ──
+(async () => {
+  const params = new URLSearchParams(location.search);
+  const code   = params.get('code');
+  if (code && dbxAppKey) {
+    await dbxExchangeCode(code);
+  } else if (dbxToken) {
+    setSyncState('syncing','Lade…');
+    try {
+      await dbxDownloadAll();
+      setSyncState('synced','Dropbox ✓');
+      renderGrid();
+    } catch(e) {
+      setSyncState('error','Offline');
+    }
+  }
+})();
 
 // ═══════════════════════════════════
 // Grid
@@ -525,7 +834,6 @@ function renderGrid() {
   const todayDay = (_now.getFullYear() === curYear && _now.getMonth() === curMonth)
     ? _now.getDate() : -1;
 
-  // ── Header row ──
   let hHtml = '<tr>';
   hHtml += '<th class="col-room day-th"></th>';
   for (let d = 1; d <= days; d++) {
@@ -538,7 +846,6 @@ function renderGrid() {
   hHtml += '</tr>';
   document.querySelector('#grid thead').innerHTML = hHtml;
 
-  // ── Body rows ──
   const totalRows = rooms.reduce((sum, r) => sum + r.beds, 0);
   let rowIndex = 0;
   let bHtml = '';
@@ -550,11 +857,10 @@ function renderGrid() {
       const divider = (prevId !== null && bed === 0) ? ' room-divider' : '';
       bHtml += `<tr class="${divider}">`;
 
-      // Room info cell
       const tk = tenantKey(room.id, bed);
       const t  = tenants[tk] || {};
       const t1 = t.t1 || '', t2 = t.t2 || '';
-      const numCls = (bed === 0) ? 'room-num' : 'room-num invisible';
+      const numCls   = (bed === 0) ? 'room-num' : 'room-num invisible';
       const badgeHtml = (room.beds > 1) ? `<span class="bed-badge">B${bed+1}</span>` : '';
       const t1Cls = t1 ? 't1-name' : 't1-name empty';
       const t2Html = t2 ? `<span class="t2-name">${t2}</span>` : '';
@@ -570,7 +876,6 @@ function renderGrid() {
         </div>
       </td>`;
 
-      // Day cells
       for (let d = 1; d <= days; d++) {
         const dow  = new Date(curYear, curMonth, d).getDay();
         const we   = (dow === 0 || dow === 6);
@@ -637,40 +942,8 @@ function cycleT2(roomId, bed, day) {
 }
 
 // ═══════════════════════════════════
-// Action Sheet (für zukünftige Nutzung)
+// Action Sheet
 // ═══════════════════════════════════
-
-function openActionSheet(roomId, bed, day) {
-  pendingCell = {roomId, bed, day};
-  const room = rooms.find(r => r.id === roomId);
-  const tk = tenantKey(roomId, bed);
-  const name = tenants[tk] || 'Zimmer ' + room.number;
-  const bedStr = room.beds > 1 ? ', Bett ' + (bed+1) : '';
-  const current = occ[cellKey(roomId, bed, day)] || 'frei';
-
-  document.getElementById('sheetTitle').textContent = name;
-  document.getElementById('sheetSub').textContent   = 'Zimmer ' + room.number + bedStr + ' – ' + day + '. ' + MONTHS_DE[curMonth];
-
-  let btns = '';
-  for (const s of STATUSES) {
-    const isCur = (s.key === current);
-    btns += `<button class="sheet-btn${isCur ? ' is-current' : ''}" onclick="setStatus('${s.key}')">
-      <span class="dot ${s.dot}"></span>${s.label}
-    </button>`;
-  }
-  document.getElementById('sheetBtns').innerHTML = btns;
-  document.getElementById('actionOverlay').classList.remove('hidden');
-}
-
-function setStatus(key) {
-  if (!pendingCell) return;
-  const ck = cellKey(pendingCell.roomId, pendingCell.bed, pendingCell.day);
-  if (key === 'frei') delete occ[ck];
-  else occ[ck] = key;
-  saveOcc();
-  closeActionSheet();
-  renderGrid();
-}
 
 function closeActionSheet() {
   document.getElementById('actionOverlay').classList.add('hidden');
@@ -760,47 +1033,37 @@ function cleaningForDay(curOcc, curTen, day) {
 
 function renderCleaning() {
   const el = document.getElementById('cleaningContent');
-  const d   = new Date();
+  const d  = new Date();
   const isCurrentMonth = (curYear === d.getFullYear() && curMonth === d.getMonth());
-  const todayDay  = isCurrentMonth ? d.getDate() : null;
-  const startDay  = todayDay || 1;
-  const endDay    = new Date(curYear, curMonth + 1, 0).getDate();
+  const todayDay = isCurrentMonth ? d.getDate() : null;
+  const startDay = todayDay || 1;
+  const endDay   = new Date(curYear, curMonth + 1, 0).getDate();
 
   const curOcc = loadOcc(curYear, curMonth);
   const curTen = loadTenants(curYear, curMonth);
 
   let html = '';
-
   for (let day = startDay; day <= endDay; day++) {
     const isToday = (day === todayDay);
     const dateObj = new Date(curYear, curMonth, day);
     const {full, small} = cleaningForDay(curOcc, curTen, day);
-
     if (!isToday && full.length === 0 && small.length === 0) continue;
-
-    const dayStr   = day + '. ' + MONTHS_DE[curMonth] + (isToday ? ' ' + curYear : '');
-    const wdayStr  = WDAYS_LONG[dateObj.getDay()];
-    const label    = isToday ? 'Heute – ' + wdayStr + ', ' + dayStr : wdayStr + ', ' + dayStr;
-    const hdrCls   = isToday ? 'cleaning-date-header' : 'future-date-header';
-
+    const dayStr  = day + '. ' + MONTHS_DE[curMonth] + (isToday ? ' ' + curYear : '');
+    const wdayStr = WDAYS_LONG[dateObj.getDay()];
+    const label   = isToday ? 'Heute – ' + wdayStr + ', ' + dayStr : wdayStr + ', ' + dayStr;
+    const hdrCls  = isToday ? 'cleaning-date-header' : 'future-date-header';
     html += `<div class="${hdrCls}">${label}</div>`;
-
     if (full.length === 0 && small.length === 0) {
       html += `<div class="cleaning-sub" style="margin-bottom:16px">✅ Keine Reinigung</div>`;
     } else {
       html += cleaningCardsHtml(full, small);
     }
   }
-
-  if (!html) {
-    html = `<div class="empty-state"><div class="emoji">✅</div><p>Keine Reinigungen geplant</p></div>`;
-  }
-
+  if (!html) html = `<div class="empty-state"><div class="emoji">✅</div><p>Keine Reinigungen geplant</p></div>`;
   if (!isCurrentMonth && !todayDay) {
     html = `<div class="cleaning-date-header">${MONTHS_DE[curMonth]} ${curYear}</div>`
          + `<div class="cleaning-sub">Anderer Monat – alle Reinigungen des Monats</div>` + html;
   }
-
   el.innerHTML = html;
 }
 
@@ -809,7 +1072,7 @@ function renderCleaning() {
 // ═══════════════════════════════════
 
 function deleteRow(roomId, bed) {
-  if (!confirm('Zeile für ' + MONTHS_DE[curMonth] + ' ' + curYear + ' löschen?\nBelegung und Mieternamen werden entfernt.')) return;
+  if (!confirm('Zeile löschen?\nBelegung und Mieternamen werden entfernt.')) return;
   const prefix = roomId + ':' + bed + ':';
   Object.keys(occ).forEach(k  => { if (k.startsWith(prefix)) delete occ[k];  });
   Object.keys(occ2).forEach(k => { if (k.startsWith(prefix)) delete occ2[k]; });
@@ -830,22 +1093,156 @@ function changeDelMonth(delta) {
 function deleteMonthData() {
   const label = MONTHS_DE[delMonth] + ' ' + delYear;
   if (!confirm(label + ' wirklich löschen?\nBelegung und Mieternamen dieses Monats werden entfernt.')) return;
-  localStorage.removeItem(occStorageKey(delYear, delMonth));
-  localStorage.removeItem(occ2StorageKey(delYear, delMonth));
+  localStorage.removeItem(occKey(delYear, delMonth));
+  localStorage.removeItem(occ2Key(delYear, delMonth));
   localStorage.removeItem(tenantsKey(delYear, delMonth));
-  if (delYear === curYear && delMonth === curMonth) {
-    occ = {}; occ2 = {}; tenants = {};
-    renderGrid();
-  }
-  alert(label + ' wurde gelöscht.');
+  if (delYear === curYear && delMonth === curMonth) { occ={}; occ2={}; tenants={}; renderGrid(); }
+  scheduleSync();
+  showToast(label + ' gelöscht');
+}
+
+function clearOccData() {
+  if (!confirm('Alle Belegungsdaten löschen?\nMieternamen und Zimmer bleiben erhalten.')) return;
+  Object.keys(localStorage).filter(k => k.startsWith('zb_occ') || k.startsWith('zb_tenants'))
+    .forEach(k => localStorage.removeItem(k));
+  occ={}; occ2={}; tenants={};
+  renderGrid();
+  scheduleSync();
+  showToast('Belegungsdaten gelöscht');
+}
+
+function changeBeds(roomId, delta) {
+  const r = rooms.find(r => r.id === roomId);
+  if (!r) return;
+  r.beds = Math.max(1, Math.min(4, r.beds + delta));
+  const el = document.getElementById('bc-' + roomId);
+  if (el) el.textContent = r.beds;
+  saveRooms(); renderGrid();
+}
+
+function deleteRoom(roomId) {
+  if (!confirm('Zimmer wirklich entfernen?')) return;
+  rooms = rooms.filter(r => r.id !== roomId);
+  saveRooms(); renderSettings(); renderGrid();
+}
+
+function addRoom() {
+  const input = document.getElementById('newRoomNum');
+  const num = parseInt(input.value);
+  if (!num || num < 1 || num > 99) { showToast('❌ Zimmernummer 1–99'); return; }
+  if (rooms.find(r => r.number === num)) { showToast('❌ Zimmer ' + num + ' existiert bereits'); return; }
+  rooms.push({id: Date.now(), number: num, beds: 1});
+  rooms.sort((a,b) => a.number - b.number);
+  saveRooms(); input.value=''; renderSettings(); renderGrid();
+}
+
+function saveAppKey() {
+  const v = document.getElementById('dbxAppKeyInput').value.trim();
+  if (!v) { showToast('❌ Bitte App-Key eingeben'); return; }
+  dbxAppKey = v;
+  localStorage.setItem('zb_dbx_appkey', dbxAppKey);
+  showToast('App-Key gespeichert');
 }
 
 function renderSettings() {
   const el = document.getElementById('settingsContent');
-  let html = '<div style="margin-bottom:8px"><div class="section-label" style="margin-bottom:8px">Zimmer</div><div class="settings-list">';
+  const isConnected = !!dbxToken;
 
+  // ── Dropbox section ──
+  const dbxHtml = `
+  <div class="section-label" style="margin-bottom:8px;margin-top:8px">☁️ Dropbox-Synchronisation</div>
+  <div class="dbx-status-row">
+    <div class="dbx-logo">
+      <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 7l-10 6.5 10 6.5 10-6.5L20 7zM10 20l10 6.5 10-6.5-10-6.5L10 20zM20 26.5L10 20l-10 6.5 10 6.5 10-6.5zM20 26.5l10-6.5 10 6.5-10 6.5-10-6.5z"/>
+      </svg>
+    </div>
+    <div class="dbx-info">
+      <strong>${isConnected ? '✅ Verbunden' : '⚪ Nicht verbunden'}</strong>
+      <small>${isConnected ? 'Daten werden automatisch synchronisiert' : 'Optionale Cloud-Sicherung über Dropbox'}</small>
+    </div>
+    ${isConnected
+      ? `<button class="btn btn-danger" style="font-size:13px;padding:8px 12px" onclick="dbxLogout()">Trennen</button>`
+      : ''}
+  </div>
+  ${!isConnected ? `
+  <div class="section-label" style="margin-bottom:6px">Schritt 1 – App-Key eintragen</div>
+  <div class="dbx-appkey-row">
+    <input id="dbxAppKeyInput" type="text" placeholder="App-Key (z. B. abc123xyz456)" value="${dbxAppKey}" autocomplete="off" autocorrect="off" autocapitalize="off">
+    <button class="btn btn-secondary" onclick="saveAppKey()">Speichern</button>
+  </div>
+  <div class="section-label" style="margin-bottom:8px;margin-top:12px">Schritt 2 – Bei Dropbox anmelden</div>
+  <div style="margin-bottom:16px">
+    <button class="btn btn-primary" style="width:100%;justify-content:center;display:flex;gap:8px;align-items:center" onclick="dbxLogin()">
+      🔐 Mit Dropbox verbinden
+    </button>
+  </div>
+
+  <div class="section-label" style="margin-bottom:8px">📋 Einrichtungsanleitung</div>
+  <div class="guide-box">
+    <div class="guide-step">
+      <div class="step-num">1</div>
+      <div class="step-text">
+        Dropbox-Konto öffnen und zu
+        <a href="https://www.dropbox.com/developers/apps" target="_blank">dropbox.com/developers/apps</a>
+        navigieren.
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="step-num">2</div>
+      <div class="step-text">
+        <strong>„Create app"</strong> klicken →
+        <em>Scoped access</em> wählen →
+        <em>App folder</em> (empfohlen, sicherer) oder <em>Full Dropbox</em>.
+        App einen Namen geben, z. B. <code>ZimmerbelegungApp</code>.
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="step-num">3</div>
+      <div class="step-text">
+        Im Tab <strong>„Permissions"</strong> folgende Scopes aktivieren:<br>
+        <code>files.content.read</code> · <code>files.content.write</code><br>
+        Dann <strong>„Submit"</strong> klicken.
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="step-num">4</div>
+      <div class="step-text">
+        Im Tab <strong>„Settings"</strong> unter <em>OAuth 2 → Redirect URIs</em>
+        die GitHub-Pages-URL dieser App eintragen, z. B.<br>
+        <code>https://benutzername.github.io/repo-name/</code><br>
+        (genau so wie sie im Browser steht, ohne <code>?</code>-Parameter).
+        Dann <strong>„Add"</strong> klicken.
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="step-num">5</div>
+      <div class="step-text">
+        Den <strong>App key</strong> aus dem Tab „Settings" kopieren, oben einfügen und auf <strong>Speichern</strong> tippen. Danach <strong>Mit Dropbox verbinden</strong> antippen – du wirst zur Dropbox-Anmeldung weitergeleitet und landest danach automatisch wieder in der App.
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="step-num">6</div>
+      <div class="step-text">
+        Fertig! Alle Daten werden automatisch in
+        <code>Dropbox/Apps/[App-Name]/data.json</code> gesichert.
+        Änderungen werden 2 Sekunden nach der letzten Eingabe hochgeladen.
+        Die App funktioniert auch auf mehreren Geräten gleichzeitig – einfach dieselbe GitHub-Pages-URL öffnen.
+      </div>
+    </div>
+  </div>
+  ` : `
+  <div style="margin-bottom:16px">
+    <button class="btn btn-secondary" style="width:100%;display:flex;justify-content:center;gap:8px" onclick="dbxUploadAll()">
+      🔄 Jetzt synchronisieren
+    </button>
+  </div>
+  `}`;
+
+  // ── Rooms section ──
+  let roomHtml = '<div style="margin-bottom:8px;margin-top:8px"><div class="section-label" style="margin-bottom:8px">Zimmer</div><div class="settings-list">';
   for (const room of rooms) {
-    html += `<div class="settings-row">
+    roomHtml += `<div class="settings-row">
       <span class="s-label" style="font-weight:700;font-size:16px">${room.number}</span>
       <div class="beds-control">
         <span class="lbl">Betten:</span>
@@ -856,8 +1253,7 @@ function renderSettings() {
       <button class="del-btn" onclick="deleteRoom(${room.id})">✕</button>
     </div>`;
   }
-
-  html += `</div></div>
+  roomHtml += `</div></div>
   <div class="section-label" style="margin-bottom:8px">Zimmer hinzufügen</div>
   <div class="add-row">
     <input type="number" id="newRoomNum" placeholder="Zimmernummer (z. B. 19)" min="1" max="99">
@@ -892,84 +1288,29 @@ function renderSettings() {
         <span class="help-dot" style="background:#e8e8e8"> </span>
       </div>
       <div class="help-text">
-        <strong>Zelle antippen</strong> wechselt den Status durch:<br>
-        <b style="color:#34c759">×</b> belegt &nbsp;→&nbsp; <b style="color:#ff9500">o</b> heim &nbsp;→&nbsp; <b style="color:#ff3b30">−</b> weg &nbsp;→&nbsp; leer
+        <strong>Zelle antippen</strong> wechselt den Status:<br>
+        <b style="color:#34c759">×</b> belegt → <b style="color:#ff9500">o</b> heim → <b style="color:#ff3b30">−</b> weg → leer
       </div>
     </div>
     <div class="help-divider"></div>
     <div class="help-row">
       <div class="help-icon">👤</div>
       <div class="help-text">
-        <strong>Mieter­name antippen</strong> öffnet die Bearbeitung.<br>
+        <strong>Mietername antippen</strong> öffnet die Bearbeitung.<br>
         <em>Mieter 2</em> eintragen für Neubelegung im laufenden Monat.
       </div>
     </div>
     <div class="help-divider"></div>
     <div class="help-row">
-      <div class="help-icon">↕</div>
+      <div class="help-icon">☁️</div>
       <div class="help-text">
-        <strong>Geteilte Zelle</strong> erscheint automatisch, wenn Mieter 2 eingetragen ist und die Zelle ein <b style="color:#ff3b30">−</b> hat.<br>
-        Obere Hälfte = Mieter 1, untere Hälfte = Mieter 2.
-      </div>
-    </div>
-    <div class="help-divider"></div>
-    <div class="help-row">
-      <div class="help-icon">🧹</div>
-      <div class="help-text">
-        <strong>Reinigung</strong> zeigt heutige und geplante Reinigungen.<br>
-        <b style="color:#ff3b30">−</b> = Komplettreinigung &nbsp;·&nbsp; <b style="color:#ff9500">o</b> = kleine Reinigung
-      </div>
-    </div>
-    <div class="help-divider"></div>
-    <div class="help-row">
-      <div class="help-icon">‹ ›</div>
-      <div class="help-text">
-        <strong>Pfeile oben</strong> wechseln den Monat.<br>
-        Daten werden pro Monat getrennt gespeichert.
+        <strong>Dropbox-Sync</strong> sichert alle Daten in der Cloud.<br>
+        Auf mehreren Geräten nutzbar – immer dieselbe Datei.
       </div>
     </div>
   </div>`;
 
-  el.innerHTML = html;
-}
-
-function changeBeds(roomId, delta) {
-  const r = rooms.find(r => r.id === roomId);
-  if (!r) return;
-  r.beds = Math.max(1, Math.min(4, r.beds + delta));
-  const el = document.getElementById('bc-' + roomId);
-  if (el) el.textContent = r.beds;
-  saveRooms();
-  renderGrid();
-}
-
-function deleteRoom(roomId) {
-  if (!confirm('Zimmer wirklich entfernen?')) return;
-  rooms = rooms.filter(r => r.id !== roomId);
-  saveRooms();
-  renderSettings();
-  renderGrid();
-}
-
-function addRoom() {
-  const input = document.getElementById('newRoomNum');
-  const num = parseInt(input.value);
-  if (!num || num < 1 || num > 99) { alert('Bitte eine Zimmernummer zwischen 1 und 99 eingeben.'); return; }
-  if (rooms.find(r => r.number === num)) { alert('Zimmer ' + num + ' existiert bereits.'); return; }
-  rooms.push({id: Date.now(), number: num, beds: 1});
-  rooms.sort((a, b) => a.number - b.number);
-  saveRooms();
-  input.value = '';
-  renderSettings();
-  renderGrid();
-}
-
-function clearOccData() {
-  if (!confirm('Alle Belegungsdaten löschen? Mieter­namen und Zimmer bleiben erhalten.')) return;
-  Object.keys(localStorage).filter(k => k.startsWith('zb_occ')).forEach(k => localStorage.removeItem(k));
-  occ = {};
-  renderGrid();
-  alert('Belegungsdaten gelöscht.');
+  el.innerHTML = dbxHtml + roomHtml;
 }
 
 // ═══════════════════════════════════
@@ -1015,91 +1356,7 @@ function updateMonthLabel() {
 
 updateMonthLabel();
 renderGrid();
-generateIcon();
-
-// ═══════════════════════════════════
-// App Icon (Canvas – kein externes Bild nötig)
-// ═══════════════════════════════════
-
-function generateIcon() {
-  const S = 512;
-  const cv = document.createElement('canvas');
-  cv.width = S; cv.height = S;
-  const c = cv.getContext('2d');
-
-  // Hilfsfunktion: abgerundetes Rechteck
-  function rr(x, y, w, h, r) {
-    c.beginPath();
-    c.moveTo(x+r, y);
-    c.lineTo(x+w-r, y); c.arcTo(x+w, y,   x+w, y+r,   r);
-    c.lineTo(x+w, y+h-r); c.arcTo(x+w, y+h, x+w-r, y+h, r);
-    c.lineTo(x+r, y+h); c.arcTo(x,   y+h, x,   y+h-r, r);
-    c.lineTo(x, y+r);   c.arcTo(x,   y,   x+r, y,     r);
-    c.closePath();
-  }
-
-  // Hintergrund – Farbverlauf blau (Gasthaus-Lehner-Blau)
-  rr(0, 0, S, S, 108);
-  const bg = c.createLinearGradient(0, 0, S, S);
-  bg.addColorStop(0, '#152f56');
-  bg.addColorStop(1, '#1e73be');
-  c.fillStyle = bg; c.fill();
-
-  // Schornstein
-  c.fillStyle = '#8a9e40';
-  c.fillRect(308, 68, 30, 88);
-
-  // Dach – Olivgrün (Gasthaus-Lehner-Akzentfarbe)
-  c.beginPath();
-  c.moveTo(256, 50);
-  c.lineTo(444, 220);
-  c.lineTo(68, 220);
-  c.closePath();
-  c.fillStyle = '#adb755'; c.fill();
-
-  // Dach-Schattenseite
-  c.beginPath();
-  c.moveTo(256, 50); c.lineTo(444, 220); c.lineTo(256, 220);
-  c.closePath();
-  c.fillStyle = 'rgba(0,0,0,0.13)'; c.fill();
-
-  // Gebäudekörper
-  rr(86, 214, 340, 256, 5);
-  c.fillStyle = 'rgba(255,255,255,0.13)'; c.fill();
-
-  // Zimmer-Raster 3 × 3
-  const cW = 88, cH = 50, gX = 11, gY = 10;
-  const sX = 112, sY = 230;
-  const palette = [
-    ['#34c759', '#34c759', '#34c759'],
-    ['#34c759', '#ff3b30', 'rgba(255,255,255,0.18)'],
-    ['#34c759', '#ff9500', '#34c759'],
-  ];
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 3; col++) {
-      rr(sX + col*(cW+gX), sY + row*(cH+gY), cW, cH, 9);
-      c.fillStyle = palette[row][col]; c.fill();
-    }
-  }
-
-  // Tür
-  rr(214, 416, 84, 54, 8);
-  c.fillStyle = 'rgba(0,0,0,0.38)'; c.fill();
-
-  // Türknauf – Olivgrün
-  c.beginPath();
-  c.arc(241, 443, 6, 0, Math.PI*2);
-  c.fillStyle = '#adb755'; c.fill();
-
-  // Als apple-touch-icon und favicon setzen
-  const url = cv.toDataURL('image/png');
-  const ati = document.createElement('link');
-  ati.rel = 'apple-touch-icon'; ati.href = url;
-  document.head.appendChild(ati);
-  const fav = document.createElement('link');
-  fav.rel = 'icon'; fav.type = 'image/png'; fav.href = url;
-  document.head.appendChild(fav);
-}
+if (!dbxToken) setSyncState('local', 'Lokal');
 </script>
 </body>
 </html>
